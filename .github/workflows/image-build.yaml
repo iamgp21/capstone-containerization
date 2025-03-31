@@ -1,0 +1,26 @@
+name: Build Image using Containerfile
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - src/DockerFile
+      - .github/workflows/image-build.yaml
+
+jobs:
+  build:
+    name: Build image
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Buildah Action
+      uses: redhat-actions/buildah-build@v2
+      with:
+        image: flask-app
+        tags: v1
+        containerfiles: |
+          /src/DockerFile
+        oci: true
