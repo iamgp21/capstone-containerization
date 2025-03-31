@@ -1,0 +1,124 @@
+name: Infra Management
+
+on:
+  workflow_dispatch:
+  
+  # push:
+  #   branches:
+  #     - main
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  deploy_iac:
+    name: 'Iac Deploy'
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        # working-directory: ./
+        shell: bash
+    
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    
+    steps:
+    # Checkout the repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - id: "auth" 
+      name: "Authenticate to Google Cloud"
+      uses: 'google-github-actions/auth@v2'
+      with:
+        # token_format: 'access_token'
+        workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_NAME }}
+        service_account: ${{ secrets.GCP_WORKLOAD_IDENTITY_SA_EMAIL }}
+    
+    # Install gcloud, `setup-gcloud` automatically picks up authentication from `auth`.
+    - name: "Set up Cloud SDK"
+      uses: 'google-github-actions/setup-gcloud@v2'
+      with:
+        version: '>= 363.0.0'
+              
+    - name: "Setup Terraform"
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: "~>1.11.0"
+    
+    # Node.js is used in this workflow to run the actions/github-script@v7 action, which allows you to write JavaScript code to interact with the GitHub API. 
+    # This is useful for updating pull requests with the results of your Terraform plan
+    - name: "Setup Node"
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    # Checks that all Terraform configuration files adhere to a canonical format
+    - name: "Terraform Format"
+      id: fmt
+      run: terraform fmt
+      continue-on-error: true
+    
+    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+    - name: "Terraform Init"
+      id: init
+      run: |
+        rm -rf .terraform
+        rm -rf .terraform.lock.hcl
+        terraform init -backend-config="backend/non-prod/remote-state.hcl"
+
+    # Generates an execution plan for Terraform
+    - name: "Terraform Validate"
+      id: Validate
+      if: github.event_name == 'pull_request'
+      run: terraform validate -json -no-color
+
+    # Generates an execution plan for Terraform
+    - name: "Terraform Plan"
+      id: plan
+      if: github.event_name == 'pull_request'
+      run: terraform plan -var-file environment/non-prod/non-prod.tfvars -input=false -lock=false -refresh=true -no-color
+
+    - name: "Update Pull Request"
+      id: comment
+      uses: actions/github-script@v7
+      if: ${{ github.event_name == 'pull_request' && steps.plan.outcome == 'success' }}
+      env:
+        PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+      with:
+        github-token: ${{ secrets.GH_TOKEN }}
+        script: |
+          const output = `#### Terraform Format and Style 🤖🖌\`${{ steps.fmt.outcome }}\`
+          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+          #### Terraform Validation 👨‍💻\`${{ steps.validate.outcome }}\`
+          <details><summary>Validation Output</summary>
+          \`\`\`\n
+          ${{ steps.validate.outputs.stdout }}
+          \`\`\`
+          </details>
+          #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+          <details><summary>Show Plan</summary>
+          \`\`\`\n
+          ${process.env.PLAN}
+          \`\`\`
+          </details>
+          *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
+
+    # Exit when plan failes
+    - name: "Terraform Plan Status"
+      if: steps.plan.outcome == 'failure'
+      run: exit 1
+  
+    - name: "Terraform Apply"
+      if: steps.plan.outcome == 'success' && github.event_name == 'pull_request'
+      run: |
+        terraform apply -var-file environment/non-prod/non-prod.tfvars -input=false -lock=false -refresh=true -auto-approve -no-color
