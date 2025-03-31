@@ -35,6 +35,10 @@ jobs:
   push_image:
     name: Push image to Google Artifact Registry
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'    
+
     needs: build
 
     steps:
