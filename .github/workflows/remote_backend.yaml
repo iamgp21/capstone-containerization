@@ -7,6 +7,7 @@ on:
 
     paths:
       - script/**
+      - .github/workflows/remote_backend.yaml
   
   workflow_dispatch:
 
