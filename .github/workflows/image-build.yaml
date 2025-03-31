@@ -32,16 +32,16 @@ jobs:
           /src/DockerFile
         oci: true
   
-  push_image:
-    name: Push image to Google Artifact Registry
-    runs-on: ubuntu-latest
-    permissions:
-      contents: 'read'
-      id-token: 'write'    
+  # push_image:
+  #   name: Push image to Google Artifact Registry
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: 'read'
+  #     id-token: 'write'    
 
-    needs: build
+  #   needs: build
 
-    steps:
+    # steps:
     - id: "auth" 
       name: "Authenticate to Google Cloud"
       uses: 'google-github-actions/auth@v2'
@@ -66,8 +66,8 @@ jobs:
       id: push-to-gar
       uses: redhat-actions/push-to-registry@v2
       with:
-        image: ${{ env.image_name }}
-        tags: ${{ env.tag }}      
+        image: ${{ steps.build.outputs.image }}
+        tags: ${{ steps.build.outputs.tags }}
         registry: ${{ env.GAR_LOCATION }}
     
     - name: Print image url
