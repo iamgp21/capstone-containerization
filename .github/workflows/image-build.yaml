@@ -1,4 +1,4 @@
-name: Build Image using Containerfile
+name: Build and Push Image
 
 on:
   push:
@@ -8,19 +8,71 @@ on:
       - src/DockerFile
       - .github/workflows/image-build.yaml
 
+env:
+  image_name: flask-app
+  tag: v1
+  PROJECT_ID: bitlost
+  REGION: asia-south1
+  GAR_LOCATION: asia-south1-docker.pkg.dev/bitlost/repository1/
+
 jobs:
   build:
-    name: Build image
+    name: Build and Push Image
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'    
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Buildah Action
+      id: build-image
       uses: redhat-actions/buildah-build@v2
       with:
-        image: flask-app
-        tags: v1
+        image: ${{ env.image_name }}
+        tags: ${{ env.tag }}
         containerfiles: |
           /src/DockerFile
         oci: true
+  
+  # push_image:
+  #   name: Push image to Google Artifact Registry
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: 'read'
+  #     id-token: 'write'    
+
+  #   needs: build
+
+    # steps:
+    - id: "auth" 
+      name: "Authenticate to Google Cloud"
+      uses: 'google-github-actions/auth@v2'
+      with:
+        # token_format: 'access_token'
+        workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_NAME }}
+        service_account: ${{ secrets.GCP_WORKLOAD_IDENTITY_SA_EMAIL }}
+    
+    # Install gcloud, `setup-gcloud` automatically picks up authentication from `auth`.
+    - name: "Set up Cloud SDK"
+      uses: 'google-github-actions/setup-gcloud@v2'
+      with:
+        version: '>= 363.0.0'
+    
+    # Authenticate to Google Artifact Registry
+    # This step configures Docker to use the Google Cloud credential helper for authentication
+    - name: "Docker auth"
+      run: |-
+        gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+    - name: "Push To GAR"
+      id: push-to-gar
+      uses: redhat-actions/push-to-registry@v2
+      with:
+        image: ${{ steps.build-image.outputs.image }}
+        tags: ${{ steps.build-image.outputs.tags }}
+        registry: ${{ env.GAR_LOCATION }}
+    
+    - name: Print image url
+      run: echo "Image pushed to ${{ steps.push-to-gar.outputs.registry-paths }}"
