@@ -15,5 +15,5 @@ jobs:
         image: flask-app
         tags: v1
         containerfiles: |
-          /src/Containerfile
+          /src/DockerFile
         oci: true
