@@ -66,8 +66,8 @@ jobs:
       id: push-to-gar
       uses: redhat-actions/push-to-registry@v2
       with:
-        image: ${{ needs.build.outputs.image }}
-        tags: ${{ needs.build.outputs.tags }}
+        image: ${{ env.image_name }}
+        tags: ${{ env.tag }}      
         registry: ${{ env.GAR_LOCATION }}
     
     - name: Print image url
