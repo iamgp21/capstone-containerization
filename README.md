@@ -19,8 +19,8 @@ Buildah Tool is a daemonless tool thus removing the need for Docker daemon solvi
 
 ### HLD:
 
-![Buildah_HLD](/iamgp21/capstone-containerization/images/Buildah_HLD.png)
+![Buildah_HLD](images/Buildah_HLD.png)
 
 
 ### Results:
-![GAR](/iamgp21/capstone-containerization/images/GAR.png)
+![GAR](images/GAR.png)
